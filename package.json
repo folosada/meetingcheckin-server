@@ -1,0 +1,31 @@
+{
+  "name": "meetingcheckin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js",
+    "debug": "nodemon --inspect server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/folosada/meetingcheckin.git"
+  },
+  "author": "folosada",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/folosada/meetingcheckin/issues"
+  },
+  "homepage": "https://github.com/folosada/meetingcheckin#readme",
+  "dependencies": {
+    "aws-sdk": "^2.259.1",
+    "base-64": "^0.1.0",
+    "cors": "^2.8.4",
+    "express": "^4.16.3",
+    "http": "0.0.0",
+    "morgan": "^1.9.0",
+    "nodemon": "^1.17.5",
+    "uuid": "^3.2.1"
+  }
+}

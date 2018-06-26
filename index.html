@@ -1,0 +1,68 @@
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    </head>
+    <body>
+        <div>
+            <span>Upload de foto:</span>
+            <label id="target"></label>
+            <input id="image" type="file"><input>
+            <button id="send">Send</button>
+        </div>
+        <div>
+            <span>Buscar foto:</span>
+            <input id="imageSearch" type="file"><input>
+            <button id="search">Search</button>
+        </div>
+    </body>
+    <script>
+        $(function () {
+            var imageBase64;
+            function getBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
+            }
+
+            $("#image").change((event) => {
+                getBase64(event.target.files[0]).then(data => {
+                    imageBase64 = data;
+                });
+            });
+            
+            $('#send').click(function () {
+                $.ajax({
+                    url: 'http://localhost:3000/putImageToBucket', // Url do lado server que vai receber o arquivo
+                    data: JSON.stringify({userId: '1234.jpg', image: imageBase64}),
+                    contentType: 'application/json',
+                    type: 'POST',
+                    success: function (data) {
+                        alert(data);
+                    }
+                });
+            });
+
+            var imageForSearchBase64;
+            $('#imageSearch').change(event => {
+                getBase64(event.target.files[0]).then(data => {
+                    imageForSearchBase64 = data;
+                });
+            })
+
+            $('#search').click(function () {
+                $.ajax({
+                    url: 'http://localhost:3000/searchImage', // Url do lado server que vai receber o arquivo
+                    data: JSON.stringify({image: imageForSearchBase64}),
+                    contentType: 'application/json',
+                    type: 'POST',
+                    success: function (data) {
+                        alert(data);
+                    }
+                });
+            });
+        });            
+    </script>
+</html>
