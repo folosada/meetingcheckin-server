@@ -44,16 +44,24 @@ app.get('/bucketExists/:name', (req, res) => {
 });
 
 app.post('/arduinoUpload', (req, res) => {
-    buffer = new Buffer();
-    offset = 0;    
+    var f = fs.createWriteStream(dirFile + 'out.jpg', {autoClose: true});
+
+    let length = Number(req.headers["content-length"]);
+    //let buffer = Buffer.alloc(length, 0, "binary");    
     req.on('data', data => {
         if (data) {
-            buffer.write(data.toString(), offset, data.toString().length(), 'binary');
-            offset = data.toString().length();
+            f.write(data);
+            /*let buff = Buffer.from(data);
+            buffer = Buffer.concat([buffer, buff]);
+            offset = data.toString().length;*/
         }
     });
     req.on('end', () => {
-        const userId = 'validacao';
+
+        f.end(() => {
+            const userId = 'validacao';
+            let buffer = fs.readFileSync(dirFile + 'out.jpg');
+            
             putFaceToBucket({userId: userId, file: buffer}).then(result => {
                 if (result) {
                     putFaceToCollection(userId);
@@ -64,7 +72,8 @@ app.post('/arduinoUpload', (req, res) => {
                     res.end('REJECTED\n');
                 }
             });
-    });    
+        }); 
+        })    
 });
 
 app.post('/putImageToBucket', (req, res) => {
@@ -175,7 +184,7 @@ function putFaceToBucket(param) {
     return S3.putObject({
         Bucket: bucketName,
         Key: param.userId + ".jpg",
-        Body: param.file,
+        Body: param.file.toString(),
         ContentEncoding: 'binary',
         ContentType: 'image/jpg'
     }).promise().then(() => {
