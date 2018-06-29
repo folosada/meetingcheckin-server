@@ -1,12 +1,12 @@
-const logger        = require('morgan'),
-    cors            = require('cors'),
-    http            = require('http'),
-    express         = require('express'),
-    bodyParser      = require('body-parser'),
-    uuid            = require('uuid'),
-    AWS             = require('aws-sdk'),
-    fs              = require('fs'),
-    base64          = require('base-64');
+const logger = require('morgan'),
+    cors = require('cors'),
+    http = require('http'),
+    express = require('express'),
+    bodyParser = require('body-parser'),
+    uuid = require('uuid'),
+    AWS = require('aws-sdk'),
+    fs = require('fs'),
+    base64 = require('base-64');
 
 
 AWS.config.apiVersions = {
@@ -16,9 +16,9 @@ AWS.config.apiVersions = {
 
 AWS.config.loadFromPath('./config.json');
 
-const collectionId = 'meetingcheckin';
+const collectionId = 'dotreg';
 const faceMatchThreshold = 70; //Limiar de similaridade, usada para buscar as faces na collection
-const bucketName = 'meetingcheckin';
+const bucketName = 'dotreg';
 const dirFile = 'C:\\Temp\\';
 
 const S3 = new AWS.S3();
@@ -37,14 +37,14 @@ const port = process.env.PORT || 3000;
 
 app.get('/bucketExists/:name', (req, res) => {
     bucketExists(req.params.name).then(data => {
-        res.status(200).send({        
+        res.status(200).send({
             result: data === true ? 'S' : 'N'
         });
     });
 });
 
 app.post('/arduinoUpload', (req, res) => {
-    var f = fs.createWriteStream(dirFile + 'out.jpg', {autoClose: true});
+    var f = fs.createWriteStream(dirFile + 'out.jpg', { autoClose: true });
 
     let length = Number(req.headers["content-length"]);
     //let buffer = Buffer.alloc(length, 0, "binary");    
@@ -59,43 +59,44 @@ app.post('/arduinoUpload', (req, res) => {
     req.on('end', () => {
 
         f.end(() => {
-            const userId = 'validacao';
             let buffer = fs.readFileSync(dirFile + 'out.jpg');
-            
-            putFaceToBucket({userId: userId, file: buffer}).then(result => {
-                if (result) {
-                    putFaceToCollection(userId);
-                    res.writeHead(200, {'Content-Type': 'text/plain'});
-                    res.end('ACCEPTED\n');
+            compareFaces(buffer).then(id => {
+                if (id) {
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
+                    res.end('ACCEPTED: ' + id + '\n');
                 } else {
-                    res.writeHead(200, {'Content-Type': 'text/plain'});
+                    res.writeHead(200, { 'Content-Type': 'text/plain' });
                     res.end('REJECTED\n');
                 }
             });
-        }); 
-        })    
+        });
+    })
 });
 
 app.post('/putImageToBucket', (req, res) => {
     let result;
-    req.on('data', body => {
-        body = JSON.parse(body);
-        let image = body.image;    
-        let userId = body.userId;      
+    let buffer = '';
+    req.on('data', data => {
+        buffer += data;
+    });
+    req.on('end', body => {
+        body = JSON.parse(buffer);
+        let image = body.image;
+        let userId = body.userId;
         let data = new Buffer(image.toString().substr(22), 'base64');
-        putFaceToBucket({userId: userId, file: data}).then((data) => {                
+        putFaceToBucket({ userId: userId, file: data }).then((data) => {
             if (data) {
-                result = {result: "Arquivo hospedado!"};
+                result = { result: "Arquivo hospedado!" };
                 putFaceToCollection(userId);
             } else {
-                result = {result: "Não foi possível concluir o processo!"};                
+                result = { result: "Não foi possível concluir o processo!" };
             }
-            res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify(result));                              
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
         }, (reason) => {
             console.log(reason);
         });
-    });    
+    });
 });
 
 app.post('/searchImage', (req, res) => {
@@ -111,40 +112,43 @@ app.post('/searchImage', (req, res) => {
 });
 
 http.createServer(app).listen(port, function (err) {
-  console.log('listening in http://localhost:' + port);
-  createCollection();
+    console.log('listening in http://localhost:' + port);
+    deleteCollection().then(() => {
+        createCollection();
+    });
 });
 
 function compareFaces(data) {
     var params = {
         CollectionId: collectionId,
         Image: {
-          Bytes: data
-          /*S3Object: {
-            Bucket: bucketName,
-            Name: face
-          }*/
+            Bytes: data
+            /*S3Object: {
+              Bucket: bucketName,
+              Name: data
+            }*/
         },
         FaceMatchThreshold: faceMatchThreshold,
         MaxFaces: 1 //Quantidade de faces que será retornada
-      };
+    };
 
-      return rekognition.searchFacesByImage(params).promise().then(data => {
-        if (data.FaceMatches) {
+    return rekognition.searchFacesByImage(params).promise().then(data => {
+        if (data.FaceMatches.length) {
             var face = data.FaceMatches[0];
             console.log("Face encontrada: " + face.Face.ExternalImageId);
             console.log("Com semelhança de: " + face.Similarity)
             return face.Face.ExternalImageId;
         } else {
-            console.log("Não foram encontradas faces")
+            console.log("Não foram encontradas faces");
+            return 0;
         }
-      }, error => {
+    }, error => {
         console.log("Erro ao buscar face: " + error.message);
-      });
+    });
 }
 
 function putFaceToCollection(face) {
-    var input = {
+    let input = {
         CollectionId: collectionId,
         Image: {
             //Bytes: new Buffer(base64Img) <- usar este parâmetro caso queira indexar uma imagem em base64, tamanho máximo 5mb
@@ -157,11 +161,13 @@ function putFaceToCollection(face) {
         ExternalImageId: face
     };
 
-    rekognition.indexFaces(input).promise().then(data => {
+    return rekognition.indexFaces(input).promise().then(data => {
         console.log("Face indexada com sucesso!")
         console.log(data);
+        return true;
     }, err => {
         console.log("Erro ao indexar face: " + err.message);
+        return false;
     });
 }
 
@@ -170,7 +176,7 @@ function putFaceToCollection(face) {
  * Caso ja exista uma coleção com este id retorna um erro.
  */
 function createCollection() {
-    rekognition.createCollection({CollectionId: collectionId}, (err, data) => {
+    rekognition.createCollection({ CollectionId: collectionId }, (err, data) => {
         if (err) {
             console.log("Erro ao criar coleção: " + err.message);
         } else {
@@ -180,11 +186,15 @@ function createCollection() {
     });
 }
 
+function deleteCollection() {
+    return rekognition.deleteCollection({CollectionId: collectionId}).promise();
+}
+
 function putFaceToBucket(param) {
     return S3.putObject({
         Bucket: bucketName,
         Key: param.userId + ".jpg",
-        Body: param.file.toString(),
+        Body: param.file,
         ContentEncoding: 'binary',
         ContentType: 'image/jpg'
     }).promise().then(() => {
@@ -194,10 +204,10 @@ function putFaceToBucket(param) {
     });
 }
 
-function bucketExists(name) {    
-    return S3.listBuckets().promise().then(data => {        
+function bucketExists(name) {
+    return S3.listBuckets().promise().then(data => {
         return data.Buckets.some((bucket => {
             return bucket.Name === name;
-        }));                
-    });    
+        }));
+    });
 }
