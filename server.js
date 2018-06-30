@@ -18,7 +18,7 @@ AWS.config.loadFromPath('./config.json');
 
 const collectionId = 'dotreg';
 const faceMatchThreshold = 70; //Limiar de similaridade, usada para buscar as faces na collection
-const bucketName = 'dotreg';
+const bucketName = 'orlando-rekognition-faces';
 const dirFile = 'C:\\Temp\\';
 
 const S3 = new AWS.S3();
@@ -99,6 +99,32 @@ app.post('/putImageToBucket', (req, res) => {
     });
 });
 
+app.post('/deleteImageByUser', (req, res) => {
+
+})
+
+app.get('/getImageByUser', (req, res) => {
+    let input = '';
+    req.on('data', data => {
+        input += data;
+    })
+    req.on('end', () => {
+        let body = req.query;
+        let images = [];
+        getImageFromAmazon(body.userId + "_0.jpg").then(image1 => {
+            images.push(image1);
+            getImageFromAmazon(body.userId + "_1.jpg").then(image2 => {
+                images.push(image2);
+                getImageFromAmazon(body.userId + "_2.jpg").then(image3 => {
+                    images.push(image3);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.write(JSON.stringify({images: images}));
+                });
+            });
+        });
+    })
+})
+
 app.post('/searchImage', (req, res) => {
     req.on('data', body => {
         body = JSON.parse(body);
@@ -113,10 +139,21 @@ app.post('/searchImage', (req, res) => {
 
 http.createServer(app).listen(port, function (err) {
     console.log('listening in http://localhost:' + port);
-    deleteCollection().then(() => {
+    //deleteCollection().then(() => {
         createCollection();
-    });
+    //});
 });
+
+function getImageFromAmazon(userId) {
+    var params = {
+        Bucket: bucketName,
+        Key: userId,
+        ResponseContentEncoding: "base64"
+    };
+    return S3.getObject(params).promise().then(response => {
+        return response.Body.toString('base64');
+    })
+}
 
 function compareFaces(data) {
     var params = {
