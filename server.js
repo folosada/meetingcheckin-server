@@ -6,19 +6,39 @@ const logger = require('morgan'),
     uuid = require('uuid'),
     AWS = require('aws-sdk'),
     fs = require('fs'),
+    admin = require('firebase-admin'),
     base64 = require('base-64');
 
+const serviceAccount = require("./config/dot-reg-firebase-admin.json");
+
+let firebaseData;
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://dot-reg.firebaseio.com",
+  databaseAuthVariableOverride: {
+      uid: "AIzaSyBVtu9ApJsveL_J4MliEhH5-4yxUT5DgIA"
+  }
+});
+
+const db = admin.database();
+const ref = db.ref("/tickets");
+ref.on("value", function(snapshot) {
+  firebaseData = snapshot.val();
+  console.log(firebaseData);
+  console.log(validateSession("3thnbES30VO6fVs6NV1ixU2v8Q03_1"))  
+});
 
 AWS.config.apiVersions = {
     rekognition: '2016-06-27',
     s3: '2006-03-01'
 };
 
-AWS.config.loadFromPath('./config.json');
+AWS.config.loadFromPath('./config/config.json');
 
-const collectionId = 'dotreg';
+const collectionId = 'meeting-checkin';
 const faceMatchThreshold = 70; //Limiar de similaridade, usada para buscar as faces na collection
-const bucketName = 'orlando-rekognition-faces';
+const bucketName = 'meeting-checkin';
 const dirFile = 'C:\\Temp\\';
 
 const S3 = new AWS.S3();
@@ -60,8 +80,8 @@ app.post('/arduinoUpload', (req, res) => {
 
         f.end(() => {
             let buffer = fs.readFileSync(dirFile + 'out.jpg');
-            compareFaces(buffer).then(id => {
-                if (id) {
+            compareFaces(buffer).then(recognized => {
+                if (recognized) {
                     res.writeHead(200, { 'Content-Type': 'text/plain' });
                     res.end('ACCEPTED: ' + id + '\n');
                 } else {
@@ -139,9 +159,7 @@ app.post('/searchImage', (req, res) => {
 
 http.createServer(app).listen(port, function (err) {
     console.log('listening in http://localhost:' + port);
-    //deleteCollection().then(() => {
-        createCollection();
-    //});
+    createCollection();    
 });
 
 function getImageFromAmazon(userId) {
@@ -173,14 +191,19 @@ function compareFaces(data) {
         if (data.FaceMatches.length) {
             var face = data.FaceMatches[0];
             console.log("Face encontrada: " + face.Face.ExternalImageId);
-            console.log("Com semelhança de: " + face.Similarity)
-            return face.Face.ExternalImageId;
+            console.log("Com semelhança de: " + face.Similarity);
+            if (face.Similarity > 80) {
+                return validateSession(face.Face.ExternalImageId);
+            } else {
+                return false;
+            }
         } else {
             console.log("Não foram encontradas faces");
-            return 0;
+            return false;
         }
     }, error => {
         console.log("Erro ao buscar face: " + error.message);
+        return false;
     });
 }
 
@@ -225,6 +248,17 @@ function createCollection() {
 
 function deleteCollection() {
     return rekognition.deleteCollection({CollectionId: collectionId}).promise();
+}
+
+function validateSession(id) {
+    id = id.substr(0, id.length-2);
+    for (let key in firebaseData) {
+        if (firebaseData[key].uid == id) {
+            ref.child(key).set(null);
+            return true;
+        }
+    }
+    return false
 }
 
 function putFaceToBucket(param) {
