@@ -17,7 +17,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://dot-reg.firebaseio.com",
   databaseAuthVariableOverride: {
-      uid: "AIzaSyBVtu9ApJsveL_J4MliEhH5-4yxUT5DgIA"
+      uid: ""
   }
 });
 
