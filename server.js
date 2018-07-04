@@ -25,8 +25,7 @@ const db = admin.database();
 const ref = db.ref("/tickets");
 ref.on("value", function(snapshot) {
   firebaseData = snapshot.val();
-  console.log(firebaseData);
-  console.log(validateSession("3thnbES30VO6fVs6NV1ixU2v8Q03_1"))  
+  console.log(firebaseData); 
 });
 
 AWS.config.apiVersions = {
